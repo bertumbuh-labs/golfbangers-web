@@ -17,13 +17,13 @@ Live golf scorecard web app for Ciputra Golf Surabaya (PWA + live score).
 3. Import schema: `online/schema.sql`
 4. Point web root to this directory.
 
-## Branches
+## Branch
 
 - `main` — production (`golfbangers.com` / `golfbangers.my.id`)
-- `develop` — staging / partner development
 
 ## Notes for collaborators
 
+- Work directly on `main` (or open a PR into `main`).
 - Do **not** commit `config.php` (ignored).
 - Runtime PWA icons are in `/icons`.
 - Master passwords for monitor list are currently in `api.php` (`viewerKey` / `superAdminKey`).
