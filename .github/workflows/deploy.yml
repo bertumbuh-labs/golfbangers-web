@@ -1,0 +1,43 @@
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Autodeployment Production
+        if: github.ref == 'refs/heads/main'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /var/www/html/golfbangers.my.id
+            git fetch origin
+            git checkout main
+            git pull origin main
+            chown -R www-data:www-data /var/www/html/golfbangers.my.id
+
+      - name: Autodeployment Development
+        if: github.ref == 'refs/heads/develop'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /var/www/html/golfbangers.my.id
+            git fetch origin
+            git checkout develop
+            git pull origin develop
+            chown -R www-data:www-data /var/www/html/golfbangers.my.id

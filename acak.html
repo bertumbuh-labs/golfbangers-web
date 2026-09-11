@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acak Tee Box</title>
+  <style>
+    :root {
+      --bg: #f6f7f2;
+      --panel: #ffffff;
+      --line: #dce3d4;
+      --ink: #1f261f;
+      --muted: #64715f;
+      --green: #176b4d;
+      --soft: #e7f2ec;
+      --gold: #8a6400;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 18px; display: grid; gap: 14px; }
+    section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+    .head { padding: 13px 14px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .body { padding: 14px; display: grid; gap: 14px; }
+    h1, h2, p { margin: 0; }
+    h1 { font-size: 24px; letter-spacing: 0; }
+    h2 { font-size: 16px; }
+    p, .muted { color: var(--muted); font-size: 13px; }
+    .controls { display: grid; grid-template-columns: 1fr 180px auto; gap: 10px; align-items: end; }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 800; }
+    select, button {
+      min-height: 40px; border: 1px solid var(--line); border-radius: 6px;
+      padding: 8px 10px; background: #fbfff8; color: var(--ink); font: inherit;
+    }
+    button { cursor: pointer; font-weight: 900; }
+    button.primary { color: #fff; background: var(--green); border-color: var(--green); }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    .share-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .share-row a {
+      min-height: 40px; display: inline-flex; align-items: center; justify-content: center;
+      padding: 8px 10px; border-radius: 6px; background: #1f8f5f; border: 1px solid #1f8f5f;
+      color: #fff; font-weight: 900; text-decoration: none;
+    }
+    .share-row a.disabled { pointer-events: none; opacity: .55; }
+    .course-picks { display: flex; flex-wrap: wrap; gap: 8px; }
+    .course-picks label {
+      display: inline-flex; min-height: 38px; align-items: center; gap: 7px; padding: 7px 10px;
+      color: var(--ink); border: 1px solid var(--line); border-radius: 6px; background: #fbfcfa;
+    }
+    .course-picks input { width: 16px; height: 16px; }
+    .result-top {
+      border: 1px solid #c8d9cf; background: var(--soft); border-radius: 8px; padding: 12px;
+      display: grid; gap: 6px;
+    }
+    .sequence {
+      font-size: 20px; font-weight: 950; line-height: 1.5; color: var(--green);
+      overflow-wrap: anywhere; white-space: pre-line;
+    }
+    .cards { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+    .hole-card { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: #fff; display: grid; gap: 5px; min-height: 108px; }
+    .hole-card strong { font-size: 24px; }
+    .badge { display: inline-flex; width: fit-content; min-height: 24px; align-items: center; padding: 3px 8px; border-radius: 999px; background: #fff3cd; color: var(--gold); font-size: 12px; font-weight: 900; }
+    .empty { padding: 18px; border: 1px dashed #bfc9ba; border-radius: 8px; color: var(--muted); background: #fbfcfa; text-align: center; }
+    @media (max-width: 860px) {
+      .controls { grid-template-columns: 1fr; }
+      .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 540px) {
+      main { padding: 10px; }
+      .head { display: grid; }
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .sequence { font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section>
+      <div class="head">
+        <div>
+          <h1>Acak Tee Box</h1>
+          <p>Acak tee box per hole. Par 5 hanya Hitam atau Biru.</p>
+        </div>
+        <span class="muted">Modul terpisah: acak-hole-module.js</span>
+      </div>
+      <div class="body">
+        <div class="controls">
+          <label>Course yang dipakai
+            <div class="course-picks">
+              <label><input type="checkbox" value="valley" checked> Lembah</label>
+              <label><input type="checkbox" value="lake" checked> Danau / Lake</label>
+              <label><input type="checkbox" value="hill"> Bukit</label>
+            </div>
+          </label>
+          <label>Jumlah hole
+            <select id="limit">
+              <option value="9">9 holes</option>
+              <option value="18" selected>18 holes</option>
+              <option value="27">27 holes</option>
+            </select>
+          </label>
+          <button id="shuffle" class="primary">Acak Tee Box</button>
+        </div>
+
+        <div class="result-top">
+          <h2>Urutan Tee Box</h2>
+          <div id="sequence" class="sequence">Klik Acak Tee Box</div>
+          <div class="share-row">
+            <a id="shareWhatsapp" class="disabled" href="#" target="_blank" rel="noopener">Share to WhatsApp</a>
+          </div>
+        </div>
+
+        <div id="result" class="empty">Belum ada hasil.</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="acak-hole-module.js"></script>
+  <script>
+    const moduleAcakHole = window.createAcakHoleModule();
+    const sequence = document.getElementById("sequence");
+    const result = document.getElementById("result");
+    const shareWhatsapp = document.getElementById("shareWhatsapp");
+
+    function esc(value) {
+      return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[ch]));
+    }
+
+    function selectedCourses() {
+      return [...document.querySelectorAll(".course-picks input:checked")].map(input => input.value);
+    }
+
+    function renderHoles(holes) {
+      sequence.textContent = moduleAcakHole.formatUrutan(holes);
+      shareWhatsapp.href = `https://wa.me/?text=${encodeURIComponent(moduleAcakHole.whatsappText(holes))}`;
+      shareWhatsapp.classList.remove("disabled");
+      result.className = "cards";
+      result.innerHTML = holes.map(hole => `
+        <article class="hole-card">
+          <span class="badge">Urutan ${hole.order}</span>
+          <strong>Hole ${hole.no}</strong>
+          <span><b>Tee ${esc(hole.tee)}</b></span>
+          <span>${esc(hole.course)} local ${hole.local}</span>
+          <span class="muted">Par ${hole.par} / Index ${hole.index}</span>
+        </article>
+      `).join("");
+    }
+
+    document.getElementById("shuffle").addEventListener("click", () => {
+      const courses = selectedCourses();
+      if (!courses.length) {
+        sequence.textContent = "Pilih minimal 1 course.";
+        shareWhatsapp.href = "#";
+        shareWhatsapp.classList.add("disabled");
+        result.className = "empty";
+        result.textContent = "Belum ada course yang dipilih.";
+        return;
+      }
+      const holes = moduleAcakHole.acak(courses, Number(document.getElementById("limit").value));
+      renderHoles(holes);
+    });
+  </script>
+</body>
+</html>

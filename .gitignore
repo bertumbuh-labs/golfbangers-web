@@ -1,0 +1,25 @@
+# Secrets / local config
+/config.php
+/online/config.php
+
+# Backup / archives
+*.zip
+*.apk
+/golfbangers.com.zip
+/download/*.apk
+
+# Large source icon packs (runtime icons kept in /icons)
+/AppIconsv2/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs / temp
+*.log
+/logs/
+/cgi-bin/
