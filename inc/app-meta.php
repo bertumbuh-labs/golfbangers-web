@@ -5,5 +5,5 @@
  */
 return [
     'copyright' => 'Copyright © 2026 GolfBangers.com by Emon. All Rights Reserved.',
-    'version_label' => 'Live Score v1.2.6 27-36 Holes Ready',
+    'version_label' => 'Live Score v1.2.7 Full Round Best Gross',
 ];

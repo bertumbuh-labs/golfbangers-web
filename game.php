@@ -163,10 +163,11 @@
     .scorecard-course { text-align: center !important; background: #145f43 !important; color: #fff; font-size: 11px; letter-spacing: 0; }
     .scorecard-course-note { margin-top: 8px; color: var(--muted); font-size: 12px; }
     .scorecard-total { width: 8.5%; text-align: center !important; }
-    .gross-crown-wrap { position: relative; display: inline-block; min-width: 26px; text-align: center; white-space: nowrap; }
+    .gross-crown-wrap { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 26px; text-align: center; white-space: nowrap; }
     .gross-crown { position: absolute; left: calc(100% + 3px); top: 50%; transform: translateY(-50%); display: inline-grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; background: linear-gradient(180deg, #fff3ae, #d9a514); color: #6f4700; font-size: 8px; line-height: 1; box-shadow: inset 0 0 0 1px rgba(120,80,0,.18); }
-    .scorecard-legend { margin-top: 6px; padding-right: 18px; text-align: right; color: var(--muted); font-size: 11px; font-weight: 800; }
-    .scorecard-legend .gross-crown { position: static; transform: none; margin: 0 4px 0 0; vertical-align: -1px; }
+    .gross-crown-wrap .gross-crown { position: static; transform: none; flex: 0 0 auto; }
+    .scorecard-legend { margin-top: 6px; padding-right: 18px; display: flex; align-items: center; justify-content: flex-end; gap: 4px; color: var(--muted); font-size: 11px; font-weight: 800; line-height: 1.4; }
+    .scorecard-legend .gross-crown { position: static; transform: none; margin: 0; flex: 0 0 auto; }
     .score-mark { display: inline-grid; place-items: center; width: 18px; height: 18px; margin: 0 auto; font-size: 10px; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1; }
     .score-birdie { background: #fff0b8; color: #765000; clip-path: polygon(50% 7%, 94% 90%, 6% 90%); padding-top: 5px; }
     .score-eagle { border: 2px solid #126348; border-radius: 4px; color: #126348; background: #e7f4ec; }
@@ -803,7 +804,7 @@
       ]}
     };
     const APP_BUILD = "2026-06-01-live-test-v1";
-    const APP_VERSION = "1.2.6";
+    const APP_VERSION = "1.2.7";
     const MAX_PLAYERS = 16;
     const KEY = "the-bangers-v3";
     const LIVE_PARAMS = new URLSearchParams(window.location.search);
@@ -1883,12 +1884,13 @@
       const frontCourse = frontIndexes.length ? esc(allHoles[frontIndexes[0]].course) + " Course" : "";
       const backCourse = backIndexes.length ? esc(allHoles[backIndexes[0]].course) + " Course" : "";
       const holeCols = indexes => indexes.map(() => `<col class="scorecard-hole-col">`).join("");
-      const crownEnabled = showSplitTotals && startIdx === 0 && endIdx >= 17 && state.holes.slice(0, 18).every(h => h.completed);
-      const total18Values = crownEnabled ? ns.map((_, player) => Number(segmentTotal(player, 0, 17))).filter(Number.isFinite) : [];
-      const lowestGross = total18Values.length ? Math.min(...total18Values) : null;
-      const total18Cell = player => {
-        const total = segmentTotal(player, 0, 17);
-        if (lowestGross !== null && Number(total) === lowestGross) {
+      const crownEnabled = showSplitTotals && startIdx === 0 && endIdx >= 17 && state.holes.slice(0, endIdx + 1).every(h => h.completed);
+      const grossTotalThrough = (player, toIdx) => segmentTotal(player, 0, toIdx);
+      const bestGrossValues = crownEnabled ? ns.map((_, player) => Number(grossTotalThrough(player, endIdx))).filter(Number.isFinite) : [];
+      const lowestGross = bestGrossValues.length ? Math.min(...bestGrossValues) : null;
+      const grossTotalCell = (player, toIdx, crownHere = false) => {
+        const total = grossTotalThrough(player, toIdx);
+        if (crownHere && lowestGross !== null && Number(total) === lowestGross) {
           return `<span class="gross-crown-wrap"><span>${total}</span><span class="gross-crown">♛</span></span>`;
         }
         return total;
@@ -1911,12 +1913,12 @@
         const endRound = indexes[indexes.length - 1] + 1;
         const courseTitle = `${esc(allHoles[indexes[0]].course)} Course`;
         return `<table class="scorecard-table">
-          <colgroup><col class="scorecard-name-col">${holeCols(indexes)}<col class="scorecard-total-col"></colgroup>
+          <colgroup><col class="scorecard-name-col">${holeCols(indexes)}<col class="scorecard-total-col"><col class="scorecard-total-col"></colgroup>
           <thead>
-            <tr><th rowspan="2" class="scorecard-name">Hole</th><th class="scorecard-course" colspan="${indexes.length}">${courseTitle}</th><th rowspan="2" class="money score-total-col scorecard-total">H${startRound}-${endRound}</th></tr>
+            <tr><th rowspan="2" class="scorecard-name">Hole</th><th class="scorecard-course" colspan="${indexes.length}">${courseTitle}</th><th rowspan="2" class="money score-total-col scorecard-total">H${startRound}-${endRound}</th><th rowspan="2" class="money score-grand-col scorecard-total">T${endRound}</th></tr>
             <tr>${holeHeaders(indexes)}</tr>
           </thead>
-          <tbody>${ns.map((name, player) => `<tr><td class="scorecard-name"><b>${esc(name)}</b></td>${scoreCells(player, indexes)}<td class="money score-total-col scorecard-total">${extraTotal(player, indexes)}</td></tr>`).join("")}</tbody>
+          <tbody>${ns.map((name, player) => `<tr><td class="scorecard-name"><b>${esc(name)}</b></td>${scoreCells(player, indexes)}<td class="money score-total-col scorecard-total">${extraTotal(player, indexes)}</td><td class="money score-grand-col scorecard-total">${grossTotalCell(player, endRound - 1, endRound - 1 === endIdx)}</td></tr>`).join("")}</tbody>
         </table>`;
       };
       const extraBlockNos = [...new Set(extraIndexes.map(idx => Math.floor(idx / 9)))];
@@ -1937,7 +1939,7 @@
             <tbody>${ns.map((name, player) => `<tr>
               <td class="scorecard-name"><b>${esc(name)}</b></td>
               ${scoreCells(player, indexes)}
-              ${showSplitTotals ? `<td class="money score-total-col scorecard-total">${segmentTotal(player, totalFrom, totalTo)}</td>${includeGrand ? `<td class="money score-grand-col scorecard-total">${total18Cell(player)}</td>` : ""}` : ""}
+              ${showSplitTotals ? `<td class="money score-total-col scorecard-total">${segmentTotal(player, totalFrom, totalTo)}</td>${includeGrand ? `<td class="money score-grand-col scorecard-total">${grossTotalCell(player, 17, endIdx === 17)}</td>` : ""}` : ""}
             </tr>`).join("")}</tbody>
           </table>
         </div>`;
@@ -1959,7 +1961,7 @@
           ${scoreCells(player, frontIndexes)}
           ${showSplitTotals && frontIndexes.length ? `<td class="money score-total-col scorecard-total">${segmentTotal(player, 0, 8)}</td>` : ""}
           ${scoreCells(player, backIndexes)}
-          ${showSplitTotals && backIndexes.length ? `<td class="money score-total-col scorecard-total">${segmentTotal(player, 9, 17)}</td><td class="money score-grand-col scorecard-total">${total18Cell(player)}</td>` : ""}
+          ${showSplitTotals && backIndexes.length ? `<td class="money score-total-col scorecard-total">${segmentTotal(player, 9, 17)}</td><td class="money score-grand-col scorecard-total">${grossTotalCell(player, 17, endIdx === 17)}</td>` : ""}
         </tr>`).join("")}</tbody>
       </table></div>`;
       const stackedTables = `<div class="scorecard-stack">${splitTable(frontIndexes, frontCourse, "F9", 0, 8, false, "one-total")}${splitTable(backIndexes, backCourse, "B9", 9, 17, true)}${extraTable}</div>`;
