@@ -517,7 +517,7 @@
             </label>
             <div id="rateSummary" class="defaults">
               <b>Default rates otomatis</b>
-              <span class="muted">Face to face dan single winner mengikuti nominal yang sama. Birdie x2, eagle x5, HIO x10.</span>
+              <span class="muted">Face to face dan single winner mengikuti nominal yang sama. Birdie x2, eagle x5, albatros x15, HIO x10.</span>
             </div>
             <div class="row">
               <button id="editRates" class="soft">Ubah Rates</button>
@@ -882,7 +882,7 @@
     function scoreMultiplier(hole, score) {
       if (!Number.isFinite(score)) return { mult: 1, label: "x1" };
       if (hole.par + score === 1) return { mult: 10, label: "HIO x10" };
-      if (score === -3) return { mult: 5, label: "Albatros x5" };
+      if (score === -3) return { mult: 15, label: "Albatros x15" };
       if (score === -2) return { mult: 5, label: "Eagle x5" };
       if (score === -1) return { mult: 2, label: "Birdie x2" };
       return { mult: 1, label: "x1" };
@@ -1461,7 +1461,7 @@
         <span>- Player Bacarat x3</span>
         <span>- Bandar Bacarat x2</span>` : `<span>3. Bacarat: <b>Tidak dipakai ronde ini</b></span>`}
         <span>4. Winner (On Berdie): <b>Rp. ${fmt.format(state.rates.par3Bonus)}</b> / Hole</span>
-        <span>Birdie x2, eagle x5, HIO x10</span>
+        <span>Birdie x2, eagle x5, albatros x15, HIO x10</span>
         `;
       document.getElementById("matrix").innerHTML = `
         <table class="matrix-table">
