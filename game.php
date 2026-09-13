@@ -1035,8 +1035,9 @@
     }
     function scoreMultiplier(hole, score) {
       if (!Number.isFinite(score)) return { mult: 1, label: "x1" };
-      if (hole.par === 3 && score <= 1 - hole.par) return { mult: 10, label: "HIO x10" };
-      if (score <= -2) return { mult: 5, label: "Eagle x5" };
+      if (hole.par + score === 1) return { mult: 10, label: "HIO x10" };
+      if (score === -3) return { mult: 5, label: "Albatros x5" };
+      if (score === -2) return { mult: 5, label: "Eagle x5" };
       if (score === -1) return { mult: 2, label: "Birdie x2" };
       return { mult: 1, label: "x1" };
     }
