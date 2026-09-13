@@ -1,5 +1,5 @@
 /* GolfBangers PWA service worker */
-const CACHE_VERSION = 'gb-pwa-v1';
+const CACHE_VERSION = 'gb-pwa-v2';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const SHELL_ASSETS = [
   '/',
@@ -59,6 +59,22 @@ self.addEventListener('fetch', (event) => {
   // APK: network only (large binary)
   if (url.pathname.endsWith('.apk')) {
     event.respondWith(fetch(request));
+    return;
+  }
+
+  // PHP pages: network first so scoring rules and app version do not stay stale.
+  if (url.pathname.endsWith('.php') || url.pathname === '/') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.ok && response.type === 'basic') {
+            const copy = response.clone();
+            caches.open(SHELL_CACHE).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
     return;
   }
 
