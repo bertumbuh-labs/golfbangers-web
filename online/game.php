@@ -599,7 +599,7 @@
   <footer class="site-footer">
     <div class="footer-inner">
       <div>Copyright © 2026 GolfBangers.com by Emon. All Rights Reserved.</div>
-      <span class="app-version">Live Score v1.2.0</span>
+      <span class="app-version">Live Score v1.2.1 On-Berdie Fix</span>
     </div>
   </footer>
 
@@ -1001,13 +1001,13 @@
           });
         }
         const birdies = active.map(idx => scores[idx] === -1 && entry.onGreen?.[idx] ? idx : -1).filter(idx => idx >= 0);
-        if (hole.par === 3 && birdies.length === 1 && winners.length === 1 && winners[0] === birdies[0]) {
+        if (hole.par === 3 && birdies.length === 1) {
           const win = birdies[0];
           active.forEach(lose => {
             if (lose === win) return;
             if (pairDisabled(win, lose)) return;
             addMoney(totals, win, lose, state.rates.par3Bonus, "birdie");
-            ledger.push(ledgerItem(hole, "On Berdie Par 3", win, lose, state.rates.par3Bonus, "Single winner, tidak nabrak"));
+            ledger.push(ledgerItem(hole, "On Berdie Par 3", win, lose, state.rates.par3Bonus, "Birdie dan On Green"));
           });
         }
         if (!state.useBacarat) return;
@@ -1468,6 +1468,9 @@
       const calcNow = calc(roundHoles().length - 1);
       const winners = holeWinners(state.active);
       const leaders = holeLeaders(state.active);
+      const onBerdiePlayers = hole.par === 3
+        ? activeIndexes(state.active).filter(player => Number(entry.scores[player]) === -1 && entry.onGreen?.[player])
+        : [];
       const needsManualBanker = manualBankerRequired(state.active);
       const bankerReady = !needsManualBanker || entry.manualBanker;
       const bankerWarning = roundHoles()[state.active]?.par === 3
@@ -1480,6 +1483,13 @@
         : winners.length === 1
           ? `Winner: ${ns[winners[0]]}`
           : `No winner${leaders.length ? `: ${leaders.map(i => ns[i]).join(", ")}` : ""}`;
+      const onBerdieStatus = hole.par === 3 && holeComplete(state.active)
+        ? onBerdiePlayers.length === 1
+          ? ` | On Berdie: ${ns[onBerdiePlayers[0]]}`
+          : onBerdiePlayers.length > 1
+            ? " | On Berdie: Draw"
+            : ""
+        : "";
 
       document.getElementById("startMessage").classList.toggle("hide", state.active !== 0 || state.holes.some(h => h.completed));
       document.getElementById("scoreCardTitle").textContent = `Score Card - ${hole.course} Course`;
@@ -1495,7 +1505,7 @@
         ${state.useBacarat ? `<div class="metric"><span>Bandar ${needsManualBanker ? "(Wajib Manual)" : entry.manualBanker ? "(Manual)" : "(Auto)"}</span><div class="metric-line"><b>${bankerReady ? esc(ns[entry.banker]) : "Pilih manual"}</b><button id="changeBanker" class="soft">Ganti Bandar</button></div></div>` : `<div class="metric"><span>Bacarat</span><b>Tidak dipakai</b></div>`}`;
       document.getElementById("scoreTable").innerHTML = scoreTable(ns, hole, entry, calcNow, bankerReady);
       const liveText = LIVE_GAME_ID ? ` | ${LIVE_CAN_EDIT ? liveSaveStatus || "Live admin" : "Live view"}` : "";
-      document.getElementById("status").textContent = `${entry.completed ? `Saved. ${statusText}` : statusText}${liveText}`;
+      document.getElementById("status").textContent = `${entry.completed ? `Saved. ${statusText}${onBerdieStatus}` : statusText}${liveText}`;
     }
     function renderNineSummary() {
       if (!state.showNineSummary) return;
