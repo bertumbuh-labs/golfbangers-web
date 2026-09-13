@@ -18,10 +18,13 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
           script: |
             cd /var/www/html/golfbangers.my.id
+            git config --global --add safe.directory /var/www/html/golfbangers.my.id
             git fetch origin
             git checkout main
             git pull origin main
             chown -R www-data:www-data /var/www/html/golfbangers.my.id
             chown -R root:root /var/www/html/golfbangers.my.id/.git
+            git rev-parse --short HEAD
