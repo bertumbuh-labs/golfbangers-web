@@ -803,7 +803,7 @@
       ]}
     };
     const APP_BUILD = "2026-06-01-live-test-v1";
-    const APP_VERSION = "1.2.3";
+    const APP_VERSION = "1.2.4";
     const MAX_PLAYERS = 16;
     const KEY = "the-bangers-v3";
     const LIVE_PARAMS = new URLSearchParams(window.location.search);
@@ -948,6 +948,7 @@
         needsManualBanker: false,
         nextBanker: null,
         bankerMult: 1,
+        kring: Array(state.players.length).fill(0),
         onGreen: Array(state.players.length).fill(false),
         baccarat: Array(state.players.length).fill(0).map(() => ({ play: true, playerMult: 1, bankerMult: 1 }))
       };
@@ -959,6 +960,7 @@
       if (state.useBacarat === undefined) state.useBacarat = true;
       state.holes.forEach((h, idx) => {
         h.scores = resize(h.scores || [], state.players.length, "");
+        h.kring = resize(h.kring || [], state.players.length, 0);
         h.onGreen = resize(h.onGreen || [], state.players.length, false).map(Boolean);
         h.baccarat = resize(h.baccarat || [], state.players.length, null).map(x => x || { play: true, playerMult: 1, bankerMult: 1 });
         if (!h.bankerMult) h.bankerMult = 1;
@@ -1130,7 +1132,7 @@
       return { hole: hole.roundNo, type, win, lose, amount, note };
     }
     function calc(until = state.active) {
-      const totals = state.players.map(() => ({ f2f: 0, winner: 0, birdie: 0, bacarat: 0, total: 0 }));
+      const totals = state.players.map(() => ({ f2f: 0, winner: 0, birdie: 0, bacarat: 0, kring: 0, total: 0 }));
       const ledger = [];
       roundHoles().forEach((hole, hi) => {
         const entry = state.holes[hi];
@@ -1175,6 +1177,15 @@
             ledger.push(ledgerItem(hole, "On Berdie Par 3", win, lose, state.rates.par3Bonus, "Birdie dan On Green"));
           });
         }
+        active.forEach(player => {
+          const amount = parseKring(entry.kring?.[player] ?? 0);
+          if (!amount) return;
+          totals[player].kring += amount;
+          ledger.push(amount > 0
+            ? ledgerItem(hole, "Kring", player, null, amount, "Kring manual")
+            : ledgerItem(hole, "Kring", null, player, Math.abs(amount), "Kring manual")
+          );
+        });
         if (!state.useBacarat) return;
         if (manualBankerRequired(hi) && !entry.manualBanker) return;
         const banker = entry.banker;
@@ -1195,7 +1206,7 @@
           ledger.push(ledgerItem(hole, "Bacarat", win, lose, amount, `P x${bet.playerMult}, B x${bankerMult}`));
         });
       });
-      totals.forEach(t => t.total = t.f2f + t.winner + t.birdie + t.bacarat);
+      totals.forEach(t => t.total = t.f2f + t.winner + t.birdie + t.bacarat + t.kring);
       return { totals, ledger };
     }
     function calcCompletedThrough(limit) {
@@ -1341,6 +1352,20 @@
       const cls = value > 0 ? "positive" : value < 0 ? "negative" : "";
       const sign = value > 0 ? "+" : value < 0 ? "-" : "";
       return `<span class="${cls}">${sign}Rp ${fmt.format(Math.abs(value))}</span>`;
+    }
+    function parseKring(value) {
+      const clean = String(value ?? "").replace(/[^\d-]/g, "");
+      if (!clean || clean === "-") return 0;
+      const negative = clean.startsWith("-");
+      const digits = clean.replace(/-/g, "");
+      if (!digits) return 0;
+      const amount = Number(digits);
+      return Number.isFinite(amount) ? (negative ? -amount : amount) : 0;
+    }
+    function formatKring(value) {
+      const amount = parseKring(value);
+      if (!amount) return "";
+      return `${amount < 0 ? "-" : ""}${fmt.format(Math.abs(amount))}`;
     }
     function esc(value) {
       return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[ch]));
@@ -1703,7 +1728,7 @@
       document.getElementById("nineSummarySubtitle").textContent = `${displayDate()} | Selesai sampai Hole ${holes[8]?.global || 9}`;
       document.getElementById("nineCoffee").innerHTML = `<b>${esc(coffeeMessage() || "After 9 holes, coffee belum bisa ditentukan.")}</b>`;
       document.getElementById("nineGrossCard").innerHTML = nineHoleScorecardHtml(0, 8);
-      document.getElementById("nineCards").innerHTML = ns.map((n, i) => `<div class="card"><strong>${esc(n)}</strong><div class="total">${signed(c.totals[i].total)}</div><p>F2F ${fmt.format(c.totals[i].f2f)} | Single Winner ${fmt.format(c.totals[i].winner)} | On-Berdie ${fmt.format(c.totals[i].birdie)}${state.useBacarat ? ` | Bacarat ${fmt.format(c.totals[i].bacarat)}` : ""}</p></div>`).join("");
+      document.getElementById("nineCards").innerHTML = ns.map((n, i) => `<div class="card"><strong>${esc(n)}</strong><div class="total">${signed(c.totals[i].total)}</div><p>F2F ${fmt.format(c.totals[i].f2f)} | Single Winner ${fmt.format(c.totals[i].winner)} | On-Berdie ${fmt.format(c.totals[i].birdie)}${state.useBacarat ? ` | Bacarat ${fmt.format(c.totals[i].bacarat)}` : ""} | Kring ${fmt.format(c.totals[i].kring)}</p></div>`).join("");
       document.getElementById("nineNextBanker").innerHTML = `Bandar berikutnya: <b>${esc(ns[nextBanker])}</b>`;
       document.getElementById("continueAfterNine").textContent = nextHole ? `Lanjut ke Hole ${nextHole.global}` : "Lanjut";
     }
@@ -1875,7 +1900,7 @@
         ? `<th>Player Call</th><th>Bandar Call</th>`
         : "";
       return `<table class="score-table">
-        <thead><tr><th>Player</th><th>Score +/- Par</th>${onGreenHead}${head}<th class="money">Total Running</th></tr></thead>
+        <thead><tr><th>Player</th><th>Score +/- Par</th>${onGreenHead}${head}<th class="money">Kring</th><th class="money">Total Running</th></tr></thead>
         <tbody>${ns.map((name, idx) => {
           if (!isActive(idx, state.active)) {
             const startAt = Number(state.activeFrom?.[idx] ?? 0);
@@ -1883,7 +1908,7 @@
             const label = pendingStart ? "Belum mulai" : "Tidak lanjut";
             const startHole = roundHoles()[startAt]?.roundNo || startAt + 1;
             const note = pendingStart ? `Golfer mulai dihitung dari Hole ${startHole}.` : "Golfer tidak ikut perhitungan mulai hole ini.";
-            return `<tr><td><b>${esc(name)}</b> <span class="pill bad">${label}</span></td><td data-label="Status" colspan="${(state.useBacarat ? 3 : 1) + (hole.par === 3 ? 1 : 0)}" class="muted">${note}</td><td data-label="Total" class="money">${signed(calcNow.totals[idx].total)}</td></tr>`;
+            return `<tr><td><b>${esc(name)}</b> <span class="pill bad">${label}</span></td><td data-label="Status" colspan="${(state.useBacarat ? 4 : 2) + (hole.par === 3 ? 1 : 0)}" class="muted">${note}</td><td data-label="Total" class="money">${signed(calcNow.totals[idx].total)}</td></tr>`;
           }
           const bet = entry.baccarat[idx];
           const scoreValue = Number(entry.scores[idx]);
@@ -1898,6 +1923,7 @@
             <td data-label="Score"><input class="score" type="number" min="-5" max="10" data-score="${idx}" value="${esc(entry.scores[idx])}"></td>
             ${onGreenCell}
             ${bacaratCells}
+            <td data-label="Kring" class="money"><input class="small money" type="text" inputmode="numeric" data-kring="${idx}" value="${esc(formatKring(entry.kring?.[idx] ?? 0))}" placeholder="0"></td>
             <td data-label="Total" class="money">${signed(calcNow.totals[idx].total)}</td>
           </tr>`;
         }).join("")}</tbody>
@@ -1924,6 +1950,7 @@
           <div class="breakdown-row"><span>Single Winner</span><b class="${moneyClass(c.totals[i].winner)}">${signed(c.totals[i].winner)}</b></div>
           <div class="breakdown-row"><span>On Berdie</span><b class="${moneyClass(c.totals[i].birdie)}">${signed(c.totals[i].birdie)}</b></div>
           ${state.useBacarat ? `<div class="breakdown-row"><span>Bacarat</span><b class="${moneyClass(c.totals[i].bacarat)}">${signed(c.totals[i].bacarat)}</b></div>` : ""}
+          <div class="breakdown-row"><span>Kring</span><b class="${moneyClass(c.totals[i].kring)}">${signed(c.totals[i].kring)}</b></div>
         </div>`;
       if (mode === "bacarat") {
         if (!state.useBacarat) return `<div class="hint"><b>Bacarat tidak dipakai di ronde ini.</b></div>`;
@@ -1942,12 +1969,13 @@
     function ledgerHtml(filterPlayer = "all") {
       const ns = names();
       const filter = filterPlayer === "all" ? "all" : Number(filterPlayer);
+      const partyName = player => player === null || player === undefined ? "Kring" : ns[player];
       const rows = calc(roundHoles().length - 1).ledger
         .filter(r => filter === "all" || r.win === filter || r.lose === filter);
       return `<label>Tampilkan golfer
           <select id="ledgerFilter"><option value="all" ${filter === "all" ? "selected" : ""}>Semua golfer</option>${ns.map((n, i) => `<option value="${i}" ${filter === i ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
         </label>
-        <div class="table"><table><thead><tr><th>Hole</th><th>Event</th><th>Winner</th><th>Loser</th><th class="money">Amount</th><th>Note</th></tr></thead><tbody>${rows.length ? rows.map(r => `<tr><td>${r.hole}</td><td>${esc(r.type)}</td><td>${esc(ns[r.win])}</td><td>${esc(ns[r.lose])}</td><td class="money">Rp ${fmt.format(r.amount)}</td><td>${esc(r.note)}</td></tr>`).join("") : `<tr><td colspan="6">Belum ada data ledger untuk golfer ini.</td></tr>`}</tbody></table></div>`;
+        <div class="table"><table><thead><tr><th>Hole</th><th>Event</th><th>Winner</th><th>Loser</th><th class="money">Amount</th><th>Note</th></tr></thead><tbody>${rows.length ? rows.map(r => `<tr><td>${r.hole}</td><td>${esc(r.type)}</td><td>${esc(partyName(r.win))}</td><td>${esc(partyName(r.lose))}</td><td class="money">Rp ${fmt.format(r.amount)}</td><td>${esc(r.note)}</td></tr>`).join("") : `<tr><td colspan="6">Belum ada data ledger untuk golfer ini.</td></tr>`}</tbody></table></div>`;
     }
     function openModal(title, html) {
       document.getElementById("modalTitle").textContent = title;
@@ -2123,6 +2151,14 @@
         await uiAlert("Score semua player yang masih lanjut harus diisi dulu.", { title: "Score belum lengkap" });
         return;
       }
+      const kringTotal = activeIndexes(state.active).reduce((sum, player) => sum + parseKring(entry.kring?.[player] ?? 0), 0);
+      if (kringTotal !== 0) {
+        await uiAlert(
+          `Total Kring belum balance. Selisih: ${signed(kringTotal).replace(/<[^>]*>/g, "")}.\n\nPastikan total pemain menang dan kalah sama sebelum lanjut.`,
+          { title: "Kring belum balance", tone: "warn" }
+        );
+        return;
+      }
       const hole = roundHoles()[state.active];
       const par3Birdies = activeIndexes(state.active).filter(player => scores[player] === -1);
       if (hole?.par === 3 && par3Birdies.length && !par3Birdies.some(player => entry.onGreen?.[player])) {
@@ -2231,6 +2267,19 @@
         save();
         return;
       }
+      if (t.dataset.kring) {
+        const playerIdx = Number(t.dataset.kring);
+        if (String(t.value).trim() === "-") {
+          state.holes[state.active].kring[playerIdx] = 0;
+          return;
+        }
+        const amount = parseKring(t.value);
+        state.holes[state.active].kring[playerIdx] = amount;
+        t.value = formatKring(amount);
+        state.holes[state.active].completed = false;
+        save();
+        return;
+      }
       if (t.dataset.rate) {
         state.rates[t.dataset.rate] = Number(t.value || 0);
         saveSetupNow();
@@ -2320,7 +2369,7 @@
         }
         return;
       }
-      if (t.dataset.player || t.dataset.voor || t.dataset.score) {
+      if (t.dataset.player || t.dataset.voor || t.dataset.score || t.dataset.kring) {
         render();
         return;
       }
