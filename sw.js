@@ -1,5 +1,5 @@
 /* GolfBangers PWA service worker */
-const CACHE_VERSION = 'gb-pwa-v5';
+const CACHE_VERSION = 'gb-pwa-v6';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 
 /* Hanya aset statis jarang berubah — JANGAN cache HTML/PHP di sini */

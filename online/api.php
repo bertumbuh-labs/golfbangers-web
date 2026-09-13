@@ -42,6 +42,7 @@ function defaultState(): string {
         'players' => ['', '', '', ''],
         'front' => 'valley',
         'back' => 'lake',
+        'courseBlocks' => ['valley', 'lake'],
         'active' => 0,
         'startBanker' => 0,
         'useBacarat' => true,
@@ -232,7 +233,7 @@ try {
         if (array_key_exists('voorAdjustments', $data)) {
             $data['voorAdjustments'] = mergeVoorAdjustments($existingState['voorAdjustments'] ?? [], $data['voorAdjustments']);
         }
-        foreach (['players', 'voor', 'voorAdjustments', 'rates', 'startBanker', 'useBacarat', 'activeFrom', 'inactiveFrom'] as $key) {
+        foreach (['players', 'voor', 'voorAdjustments', 'rates', 'startBanker', 'useBacarat', 'courseBlocks', 'activeFrom', 'inactiveFrom'] as $key) {
             if (array_key_exists($key, $data)) $existingState[$key] = $data[$key];
         }
         $json = json_encode($existingState, JSON_UNESCAPED_SLASHES);

@@ -585,15 +585,15 @@
   <section id="finalSummaryPanel" class="hide">
     <div class="head">
       <div>
-        <h2>What a Game! See You Next Game! - Go Go Bangers.</h2>
-        <p>Final summary after 18 holes.</p>
+        <h2 id="finalSummaryTitle">What a Game! See You Next Game! - Go Go Bangers.</h2>
+        <p id="finalSummarySubtitle">Final summary.</p>
       </div>
     </div>
     <div class="body summary-screen">
       <div id="finalProgress"></div>
       <div id="finalGrossCard" class="table"></div>
       <div class="hint">Jangan lupa cek voor untuk game selanjutnya berdasarkan hasil matchplay.</div>
-      <div class="row"><button id="finalMatchplay" class="primary">Check Matchplay</button><button id="backToScoreCard">Kembali ke Score Card</button></div>
+      <div class="row" id="finalSummaryActions"><button id="finalMatchplay" class="primary">Check Matchplay</button><button id="backToScoreCard">Kembali ke Score Card</button></div>
     </div>
   </section>
   <?php
@@ -755,6 +755,7 @@
       players: ["", "", "", ""],
       front: "valley",
       back: "lake",
+      courseBlocks: ["valley", "lake"],
       active: 0,
       startBanker: 0,
       useBacarat: true,
@@ -771,10 +772,28 @@
     });
     let state = defaultState();
 
+    function normalizedCourseBlocks() {
+      const fallback = [state.front || "valley", state.back || "lake"];
+      let blocks = Array.isArray(state.courseBlocks) && state.courseBlocks.length ? state.courseBlocks : fallback;
+      blocks = blocks.map(course => COURSE[course] ? course : "valley").slice(0, 4);
+      while (blocks.length < 2) blocks.push(blocks.length ? blocks[0] : "lake");
+      state.courseBlocks = blocks;
+      state.front = blocks[0];
+      state.back = blocks[1];
+      return blocks;
+    }
+    function pairedCourseForBlock(blockIdx, blocks) {
+      if (blockIdx === 0) return blocks[1] || blocks[0];
+      if (blockIdx === 1) return blocks[0] || blocks[1];
+      return blocks[blockIdx - 1] || blocks[0] || "lake";
+    }
     function roundHoles() {
-      const first = COURSE[state.front].holes.map((h, i) => makeHole(h, COURSE[state.front].name, 0, i + 1, state.back));
-      const second = COURSE[state.back].holes.map((h, i) => makeHole(h, COURSE[state.back].name, 1, i + 10, state.front));
-      return [...first, ...second];
+      const blocks = normalizedCourseBlocks();
+      return blocks.flatMap((courseId, blockIdx) => {
+        const course = COURSE[courseId] || COURSE.valley;
+        const pairedCourse = pairedCourseForBlock(blockIdx, blocks);
+        return course.holes.map((h, i) => makeHole(h, course.name, blockIdx, blockIdx * 9 + i + 1, pairedCourse));
+      });
     }
     function makeHole(h, course, nine, roundNo, pairedCourse) {
       const index = typeof h[3] === "object" ? h[3][pairedCourse] || h[3].lake || h[3].valley : h[3];
@@ -1359,6 +1378,7 @@
         rates: state.rates,
         startBanker: state.startBanker,
         useBacarat: state.useBacarat,
+        courseBlocks: normalizedCourseBlocks(),
         activeFrom: state.activeFrom || {},
         inactiveFrom: state.inactiveFrom || {}
       };
@@ -1471,6 +1491,7 @@
       document.documentElement.dataset.liveMode = LIVE_GAME_ID ? LIVE_CAN_EDIT ? "edit" : "view" : "local";
       updateStickyOffset();
       updateShareWhatsapp();
+      normalizedCourseBlocks();
       document.getElementById("front").value = state.front;
       document.getElementById("back").value = state.back;
     }
@@ -1643,21 +1664,35 @@
     function renderNineSummary() {
       if (!state.showNineSummary) return;
       const ns = names();
-      const c = calc(8);
       const holes = roundHoles();
-      const nextHole = holes[9];
-      const nextBanker = state.holes[9]?.banker ?? state.holes[8]?.nextBanker ?? 0;
-      document.getElementById("nineSummarySubtitle").textContent = `${displayDate()} | Selesai sampai Hole ${holes[8]?.global || 9}`;
-      document.getElementById("nineCoffee").innerHTML = `<b>${esc(coffeeMessage() || "After 9 holes, coffee belum bisa ditentukan.")}</b>`;
-      document.getElementById("nineGrossCard").innerHTML = grossScorecardHtml(0, 8);
+      const completed = Math.max(9, calcCompletedThrough(holes.length - 1));
+      const endIdx = Math.min(holes.length - 1, completed - 1);
+      const startIdx = Math.floor(endIdx / 9) * 9;
+      const c = calc(endIdx);
+      const nextHole = holes[endIdx + 1];
+      const nextBanker = state.holes[endIdx + 1]?.banker ?? state.holes[endIdx]?.nextBanker ?? 0;
+      document.getElementById("nineSummarySubtitle").textContent = `${displayDate()} | Selesai sampai Hole ${holes[endIdx]?.roundNo || endIdx + 1}`;
+      document.getElementById("nineCoffee").innerHTML = startIdx === 0 ? `<b>${esc(coffeeMessage() || "After 9 holes, coffee belum bisa ditentukan.")}</b>` : "";
+      document.getElementById("nineGrossCard").innerHTML = grossScorecardHtml(startIdx, endIdx);
       document.getElementById("nineCards").innerHTML = ns.map((n, i) => `<div class="card"><strong>${esc(n)}</strong><div class="total">${signed(c.totals[i].total)}</div><p>F2F ${fmt.format(c.totals[i].f2f)} | Single Winner ${fmt.format(c.totals[i].winner)} | On-Berdie ${fmt.format(c.totals[i].birdie)}${state.useBacarat ? ` | Bacarat ${fmt.format(c.totals[i].bacarat)}` : ""} | Kring ${fmt.format(c.totals[i].kring)}</p></div>`).join("");
       document.getElementById("nineNextBanker").innerHTML = `Bandar berikutnya: <b>${esc(ns[nextBanker])}</b>`;
-      document.getElementById("continueAfterNine").textContent = nextHole ? `Lanjut ke Hole ${nextHole.global}` : "Lanjut";
+      document.getElementById("continueAfterNine").textContent = nextHole ? `Lanjut ke Hole ${nextHole.roundNo}` : "Lanjut";
     }
     function renderFinalSummary() {
       if (!state.showFinalSummary) return;
+      const totalHoles = roundHoles().length;
+      const completed = calcCompletedThrough(totalHoles - 1);
+      const canExtend = completed >= totalHoles && totalHoles < 36;
+      document.getElementById("finalSummaryTitle").textContent = totalHoles >= 36
+        ? "What a Game! See You Next Game! - Go Go Bangers."
+        : `Rekapan ${totalHoles} Holes`;
+      document.getElementById("finalSummarySubtitle").textContent = `${displayDate()} | Selesai sampai Hole ${completed || totalHoles}`;
       document.getElementById("finalProgress").innerHTML = `<div class="hint"><b>Tanggal Game: ${displayDate()}</b></div>${progressHtml("total", { hideF2FDetail: true, hideCoffee: true })}`;
-      document.getElementById("finalGrossCard").innerHTML = grossScorecardHtml(0, roundHoles().length - 1, true);
+      document.getElementById("finalGrossCard").innerHTML = grossScorecardHtml(0, totalHoles - 1, true);
+      document.getElementById("finalSummaryActions").innerHTML = `
+        <button id="finalMatchplay" class="primary">Check Matchplay</button>
+        ${canExtend ? `<button id="continueExtraNine" class="soft">Lanjut ${totalHoles + 9} Holes</button>` : ""}
+        <button id="backToScoreCard">Kembali ke Score Card</button>`;
     }
     function grossScorecardHtml(startIdx, endIdx, showSplitTotals = false) {
       const holes = roundHoles().slice(startIdx, endIdx + 1);
@@ -1822,6 +1857,16 @@
       <div class="hint">Gunakan ini untuk kembali mengoreksi score atau bacarat yang salah entry.</div>
       <div class="row"><button id="confirmChangeHole" class="primary">Ganti Hole</button></div>`;
     }
+    function continueExtraNineHtml() {
+      const currentTotal = roundHoles().length;
+      const nextTotal = currentTotal + 9;
+      const suggestedCourse = currentTotal === 18 && COURSE.hill ? "hill" : normalizedCourseBlocks()[0];
+      return `<label>Pilih course untuk Hole ${currentTotal + 1}-${nextTotal}
+        <select id="extraCourseSelect">${Object.entries(COURSE).map(([id, course]) => `<option value="${id}" ${id === suggestedCourse ? "selected" : ""}>${esc(course.name)} Course</option>`).join("")}</select>
+      </label>
+      <div class="hint">Setelah course dipilih, layar akan masuk ke adjust voor khusus untuk 9 holes berikutnya. Score ${currentTotal} holes yang sudah selesai tetap terkunci dengan voor lama.</div>
+      <div class="row"><button id="confirmContinueExtra" class="primary">Lanjut ${nextTotal} Holes</button></div>`;
+    }
     function removePlayer(index) {
       if (state.players.length <= 2) return;
       state.players.splice(index, 1);
@@ -1967,7 +2012,7 @@
       entry.completed = true;
       entry.nextBanker = next.banker;
       recalcBankersFrom(state.active);
-      if (state.active === 8) {
+      if ((state.active + 1) % 9 === 0 && state.active < roundHoles().length - 1) {
         state.showNineSummary = true;
       } else if (state.active === roundHoles().length - 1) {
         state.showFinalSummary = true;
@@ -2173,6 +2218,7 @@
         }
         state[t.id] = t.value;
         normalizeCoursePair(t.id);
+        state.courseBlocks = [state.front, state.back];
         state.active = 0;
         state.holes = [];
       }
@@ -2239,6 +2285,7 @@
         state.started = true;
         if (!state.gameDate) state.gameDate = todayIso();
         state.active = 0;
+        state.courseBlocks = [state.front, state.back];
         state.activeFrom = {};
         state.inactiveFrom = {};
         state.voorAdjustments = {};
@@ -2321,7 +2368,8 @@
       }
       if (b.id === "continueAfterNine") {
         state.showNineSummary = false;
-        state.active = Math.min(9, roundHoles().length - 1);
+        const completed = calcCompletedThrough(roundHoles().length - 1);
+        state.active = Math.min(completed, roundHoles().length - 1);
       }
       if (b.id === "adjustBackNine") {
         if (!beginCheckpointVoorEdit()) {
@@ -2334,6 +2382,30 @@
         flushSave();
       }
       if (b.id === "finalMatchplay") openModal("Matchplay & Voor Next Game", matchplayHtml());
+      if (b.id === "continueExtraNine") {
+        openModal(`Lanjut ${roundHoles().length + 9} Holes`, continueExtraNineHtml());
+        return;
+      }
+      if (b.id === "confirmContinueExtra") {
+        const blocks = normalizedCourseBlocks();
+        const currentTotal = roundHoles().length;
+        if (currentTotal >= 36) {
+          document.getElementById("modal").classList.remove("show");
+          return;
+        }
+        blocks.push(document.getElementById("extraCourseSelect").value);
+        state.courseBlocks = blocks.slice(0, 4);
+        state.showFinalSummary = false;
+        state.showNineSummary = false;
+        ensure();
+        if (!beginCheckpointVoorEdit()) {
+          state.active = Math.min(currentTotal, roundHoles().length - 1);
+        }
+        document.getElementById("modal").classList.remove("show");
+        flushSave();
+        render();
+        return;
+      }
       if (b.id === "backToScoreCard") {
         state.showFinalSummary = false;
         state.active = Math.max(0, roundHoles().length - 1);
