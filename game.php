@@ -803,7 +803,8 @@
       ]}
     };
     const APP_BUILD = "2026-06-01-live-test-v1";
-    const APP_VERSION = "1.2.2";
+    const APP_VERSION = "1.2.3";
+    const MAX_PLAYERS = 16;
     const KEY = "the-bangers-v3";
     const LIVE_PARAMS = new URLSearchParams(window.location.search);
     const LIVE_GAME_ID = LIVE_PARAMS.get("id") || "";
@@ -1605,6 +1606,9 @@
       document.getElementById("setupModeHint").textContent = state.editingSetup ? "Edit voor tanpa hapus score" : "Isi urut dari atas ke bawah";
       document.getElementById("startGame").textContent = state.editingSetup ? `Simpan perubahan & Lanjut ke Hole ${roundHoles()[lastPlayableHole()]?.global || 1}` : "Mulai Permainan";
       document.getElementById("startHelp").textContent = state.editingSetup ? "Perubahan voor akan dihitung ulang dari score yang sudah tersimpan. Data score tidak dihapus." : "Setelah mulai, layar utama dibuat seperti score card dan progress dibuka lewat tombol.";
+      const addBtn = document.getElementById("add");
+      addBtn.disabled = state.players.length >= MAX_PLAYERS;
+      addBtn.textContent = state.players.length >= MAX_PLAYERS ? `Maks ${MAX_PLAYERS} Player` : "Tambah Player";
       document.getElementById("useBacarat").checked = !!state.useBacarat;
       document.getElementById("startBankerWrap").classList.toggle("hide", !state.useBacarat);
       document.getElementById("rateSummary").innerHTML = `
@@ -2034,7 +2038,7 @@
       else if (state.startBanker > index) state.startBanker -= 1;
     }
     function addPlayer() {
-      if (state.players.length >= 8) return;
+      if (state.players.length >= MAX_PLAYERS) return;
       const index = state.players.length;
       state.players.push("");
       if (state.started) {

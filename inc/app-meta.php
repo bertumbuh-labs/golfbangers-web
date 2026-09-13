@@ -5,5 +5,5 @@
  */
 return [
     'copyright' => 'Copyright © 2026 GolfBangers.com by Emon. All Rights Reserved.',
-    'version_label' => 'Live Score v1.2.2 Special Matchplay',
+    'version_label' => 'Live Score v1.2.3 16 Players Bangers Gas',
 ];
