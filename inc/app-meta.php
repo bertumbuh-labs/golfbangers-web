@@ -5,5 +5,5 @@
  */
 return [
     'copyright' => 'Copyright © 2026 GolfBangers.com by Emon. All Rights Reserved.',
-    'version_label' => 'Live Score v1.2.4 Kring Balance',
+    'version_label' => 'Live Score v1.2.5 Independent Voor Checkpoint',
 ];

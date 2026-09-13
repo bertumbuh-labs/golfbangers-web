@@ -47,6 +47,8 @@ function defaultState(): string {
         'useBacarat' => true,
         'rates' => ['f2f' => 100000, 'winner' => 100000, 'par3Bonus' => 100000, 'bacarat' => 50000, 'bacaratPar3' => 100000],
         'voor' => new stdClass(),
+        'voorAdjustments' => new stdClass(),
+        'editingVoorStart' => 0,
         'activeFrom' => new stdClass(),
         'inactiveFrom' => new stdClass(),
         'editingSetup' => false,
@@ -61,6 +63,12 @@ function voorCount(array $state): int {
     foreach (($state['voor'] ?? []) as $value) {
         if (trim((string)$value) !== '') $count++;
     }
+    foreach (($state['voorAdjustments'] ?? []) as $voor) {
+        if (!is_array($voor)) continue;
+        foreach ($voor as $value) {
+            if (trim((string)$value) !== '') $count++;
+        }
+    }
     return $count;
 }
 
@@ -70,6 +78,15 @@ function mergeVoor($existingVoor, $incomingVoor): array {
     foreach ($incomingVoor as $key => $value) {
         $clean = trim((string)$value);
         if ($clean !== '') $merged[$key] = $value;
+    }
+    return $merged;
+}
+
+function mergeVoorAdjustments($existingAdjustments, $incomingAdjustments): array {
+    $merged = is_array($existingAdjustments) ? $existingAdjustments : [];
+    if (!is_array($incomingAdjustments)) return $merged;
+    foreach ($incomingAdjustments as $start => $voor) {
+        $merged[$start] = mergeVoor($merged[$start] ?? [], $voor);
     }
     return $merged;
 }
@@ -204,6 +221,7 @@ try {
         $existingState = json_decode($game['state_json'], true);
         if (is_array($existingState)) {
             $state['voor'] = mergeVoor($existingState['voor'] ?? [], $state['voor'] ?? []);
+            $state['voorAdjustments'] = mergeVoorAdjustments($existingState['voorAdjustments'] ?? [], $state['voorAdjustments'] ?? []);
         }
         if (is_array($existingState) && (!array_key_exists('activeFrom', $state) || empty($state['activeFrom'])) && !empty($existingState['activeFrom'])) {
             $state['activeFrom'] = $existingState['activeFrom'];
@@ -229,7 +247,10 @@ try {
         if (array_key_exists('voor', $data)) {
             $data['voor'] = mergeVoor($existingState['voor'] ?? [], $data['voor']);
         }
-        foreach (['players', 'voor', 'rates', 'startBanker', 'useBacarat', 'activeFrom', 'inactiveFrom'] as $key) {
+        if (array_key_exists('voorAdjustments', $data)) {
+            $data['voorAdjustments'] = mergeVoorAdjustments($existingState['voorAdjustments'] ?? [], $data['voorAdjustments']);
+        }
+        foreach (['players', 'voor', 'voorAdjustments', 'rates', 'startBanker', 'useBacarat', 'activeFrom', 'inactiveFrom'] as $key) {
             if (array_key_exists($key, $data)) $existingState[$key] = $data[$key];
         }
         $json = json_encode($existingState, JSON_UNESCAPED_SLASHES);

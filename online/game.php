@@ -760,6 +760,8 @@
       useBacarat: true,
       rates: { f2f: 100000, winner: 100000, par3Bonus: 100000, bacarat: 50000, bacaratPar3: 100000 },
       voor: {},
+      voorAdjustments: {},
+      editingVoorStart: 0,
       activeFrom: {},
       inactiveFrom: {},
       editingSetup: false,
@@ -815,6 +817,9 @@
         if (h.banker >= state.players.length) h.banker = 0;
         if (idx === 0 && !h.manualBanker) h.banker = state.startBanker;
       });
+      state.voor = state.voor || {};
+      state.voorAdjustments = state.voorAdjustments || {};
+      state.editingVoorStart = Number(state.editingVoorStart || 0);
     }
     function resize(arr, len, fill) {
       const out = arr.slice(0, len);
@@ -862,18 +867,49 @@
       const parsed = parseVoor(clean);
       return parsed.count ? `${prefix}${parsed.count}` : clean;
     }
-    function pairDisabled(a, b) {
-      return [state.voor[`${a}-${b}`], state.voor[`${b}-${a}`]].some(value => ["x", "no-game", "nogame"].includes(String(value || "").trim().toLowerCase()));
+    function isNoGameVoor(value) {
+      return ["x", "no-game", "nogame"].includes(String(value || "").trim().toLowerCase());
+    }
+    function voorStartForHole(holeIdx) {
+      const starts = Object.keys(state.voorAdjustments || {})
+        .map(Number)
+        .filter(start => Number.isFinite(start) && start > 0 && start <= holeIdx)
+        .sort((a, b) => b - a);
+      return starts[0] || 0;
+    }
+    function effectiveVoorMap(holeIdx) {
+      const start = voorStartForHole(holeIdx);
+      return start ? (state.voorAdjustments?.[String(start)] || state.voor || {}) : (state.voor || {});
+    }
+    function editableVoorStart() {
+      return Number(state.editingVoorStart || 0);
+    }
+    function editableVoorMap() {
+      const start = editableVoorStart();
+      if (!start) return state.voor;
+      state.voorAdjustments = state.voorAdjustments || {};
+      const key = String(start);
+      if (!state.voorAdjustments[key] || !hasVoorObject(state.voorAdjustments[key])) {
+        state.voorAdjustments[key] = { ...effectiveVoorMap(Math.max(0, start - 1)) };
+      }
+      return state.voorAdjustments[key];
+    }
+    function pairDisabled(a, b, holeIdx = state.active) {
+      const voor = effectiveVoorMap(holeIdx);
+      return [voor[`${a}-${b}`], voor[`${b}-${a}`]].some(isNoGameVoor);
     }
     function voorStroke(giver, receiver, holeIdx) {
-      const direct = String(state.voor[`${giver}-${receiver}`] || "").trim();
+      const voor = effectiveVoorMap(holeIdx);
+      const direct = String(voor[`${giver}-${receiver}`] || "").trim();
       if (!direct || direct.startsWith("+") || ["skret", "x", "no-game", "nogame"].includes(direct.toLowerCase())) return 0;
       const rule = parseVoor(direct);
       const hole = roundHoles()[holeIdx];
       if (!rule.stroke || !rule.count || ![4,5].includes(hole.par)) return 0;
+      const blockStart = Math.floor(holeIdx / 9) * 9;
+      const blockEnd = blockStart + 9;
       const eligible = roundHoles()
         .map((h, idx) => ({ ...h, idx }))
-        .filter(h => h.nine === hole.nine && [4,5].includes(h.par))
+        .filter(h => h.idx >= blockStart && h.idx < blockEnd && [4,5].includes(h.par))
         .sort((a, b) => a.index - b.index)
         .slice(0, rule.count)
         .map(h => h.idx);
@@ -918,7 +954,7 @@
       if (!holeComplete(holeIdx)) return [];
       return active.filter(player => active.every(opponent => {
         if (opponent === player) return true;
-        if (pairDisabled(player, opponent)) return true;
+        if (pairDisabled(player, opponent, holeIdx)) return true;
         return netVs(player, opponent, holeIdx, scores[player]) <= netVs(opponent, player, holeIdx, scores[opponent]);
       }));
     }
@@ -928,7 +964,7 @@
       if (!holeComplete(holeIdx)) return [];
       return active.filter(player => active.every(opponent => {
         if (opponent === player) return true;
-        if (pairDisabled(player, opponent)) return true;
+        if (pairDisabled(player, opponent, holeIdx)) return true;
         return netVs(player, opponent, holeIdx, scores[player]) < netVs(opponent, player, holeIdx, scores[opponent]);
       }));
     }
@@ -989,7 +1025,7 @@
           for (let bi = ai + 1; bi < active.length; bi++) {
             const a = active[ai];
             const b = active[bi];
-            if (pairDisabled(a, b)) continue;
+            if (pairDisabled(a, b, hi)) continue;
             const na = netVs(a, b, hi, scores[a]);
             const nb = netVs(b, a, hi, scores[b]);
             if (na === nb) continue;
@@ -1006,7 +1042,7 @@
           const win = winners[0];
           active.forEach(lose => {
             if (lose === win) return;
-            if (pairDisabled(win, lose)) return;
+            if (pairDisabled(win, lose, hi)) return;
             const bonus = scoreMultiplier(hole, scores[win]);
             const amount = state.rates.winner * bonus.mult;
             addMoney(totals, win, lose, amount, "winner");
@@ -1018,7 +1054,7 @@
           const win = birdies[0];
           active.forEach(lose => {
             if (lose === win) return;
-            if (pairDisabled(win, lose)) return;
+            if (pairDisabled(win, lose, hi)) return;
             addMoney(totals, win, lose, state.rates.par3Bonus, "birdie");
             ledger.push(ledgerItem(hole, "On Berdie Par 3", win, lose, state.rates.par3Bonus, "Birdie dan On Green"));
           });
@@ -1038,7 +1074,7 @@
         if (!active.includes(banker)) return;
         active.forEach(player => {
           if (player === banker) return;
-          if (pairDisabled(player, banker)) return;
+          if (pairDisabled(player, banker, hi)) return;
           const bet = entry.baccarat[player];
           const playerNet = netVs(player, banker, hi, scores[player]);
           const bankerNet = netVs(banker, player, hi, scores[banker]);
@@ -1071,7 +1107,7 @@
       let aWins = 0, bWins = 0, draws = 0;
       roundHoles().forEach((hole, idx) => {
         if (idx > until || !state.holes[idx].completed || !isActive(a, idx) || !isActive(b, idx)) return;
-        if (pairDisabled(a, b)) return;
+        if (pairDisabled(a, b, idx)) return;
         const scores = state.holes[idx].scores.map(Number);
         const netA = netVs(a, b, idx, scores[a]);
         const netB = netVs(b, a, idx, scores[b]);
@@ -1099,29 +1135,29 @@
         <div class="hint">Catatan ini hanya pengingat pencapaian score spesial. Bonus matchplay tetap dihitung per lawan dan bisa batal untuk pair yang draw karena voor.</div>
         <div class="table"><table><thead><tr><th>Hole</th><th>Player</th><th>Achievement</th><th class="money">Score</th><th>Par</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
     }
-    function voorText(giver, receiver) {
-      return formatVoor(state.voor[`${giver}-${receiver}`]) || "Skret";
+    function voorText(giver, receiver, holeIdx = state.active) {
+      return formatVoor(effectiveVoorMap(holeIdx)[`${giver}-${receiver}`]) || "Skret";
     }
-    function givingVoorCount(giver, receiver) {
-      const raw = String(state.voor[`${giver}-${receiver}`] || "").trim();
+    function givingVoorCount(giver, receiver, holeIdx = state.active) {
+      const raw = String(effectiveVoorMap(holeIdx)[`${giver}-${receiver}`] || "").trim();
       if (!raw || raw.startsWith("+") || ["skret", "x", "no-game", "nogame"].includes(raw.toLowerCase())) return 0;
       return parseVoor(raw).count || 0;
     }
-    function actualVoorText(primary, other) {
-      if (pairDisabled(primary, other)) return "Tidak main";
-      const primaryGives = givingVoorCount(primary, other);
+    function actualVoorText(primary, other, holeIdx = lastPlayableHole()) {
+      if (pairDisabled(primary, other, holeIdx)) return "Tidak main";
+      const primaryGives = givingVoorCount(primary, other, holeIdx);
       if (primaryGives) return `${names()[primary]} ke ${names()[other]}: ${primaryGives}`;
-      const otherGives = givingVoorCount(other, primary);
+      const otherGives = givingVoorCount(other, primary, holeIdx);
       if (otherGives) return `${names()[other]} ke ${names()[primary]}: ${otherGives}`;
       return `${names()[primary]} ke ${names()[other]}: Skret`;
     }
-    function recommendVoor(a, b, diff) {
+    function recommendVoor(a, b, diff, holeIdx = lastPlayableHole()) {
       const steps = Math.floor(Math.abs(diff) / 3);
       const winner = diff > 0 ? a : b;
       const loser = diff > 0 ? b : a;
       if (!steps) return `${names()[winner]} ke ${names()[loser]}: TETAP`;
-      const currentWinnerGives = givingVoorCount(winner, loser);
-      const currentLoserGives = givingVoorCount(loser, winner);
+      const currentWinnerGives = givingVoorCount(winner, loser, holeIdx);
+      const currentLoserGives = givingVoorCount(loser, winner, holeIdx);
       if (currentLoserGives) {
         if (currentLoserGives > steps) {
           return `${names()[loser]} ke ${names()[winner]}: TURUN ${currentLoserGives - steps}`;
@@ -1220,7 +1256,7 @@
       return `api.php?action=${encodeURIComponent(action)}&id=${encodeURIComponent(LIVE_GAME_ID)}`;
     }
     function hasVoorData(source) {
-      return Object.values(source?.voor || {}).some(value => String(value || "").trim());
+      return hasVoorObject(source?.voor) || Object.values(source?.voorAdjustments || {}).some(hasVoorObject);
     }
     function hasVoorObject(voor) {
       return Object.values(voor || {}).some(value => String(value || "").trim());
@@ -1234,6 +1270,18 @@
         if (String(value || "").trim()) merged[key] = value;
       });
       return merged;
+    }
+    function mergeVoorAdjustments(existingAdjustments = {}, incomingAdjustments = {}) {
+      const merged = { ...(existingAdjustments || {}) };
+      Object.entries(incomingAdjustments || {}).forEach(([start, voor]) => {
+        merged[start] = mergeVoorData(merged[start] || {}, voor || {});
+      });
+      return merged;
+    }
+    function mergeVoorStateFrom(source) {
+      if (!source) return;
+      if (hasVoorObject(source.voor)) state.voor = mergeVoorData(source.voor, state.voor);
+      if (source.voorAdjustments) state.voorAdjustments = mergeVoorAdjustments(source.voorAdjustments, state.voorAdjustments);
     }
     function readVoorBackup() {
       try {
@@ -1257,7 +1305,7 @@
         if (!hasVoorData(state)) {
           const cached = cachedLiveState();
           if (hasVoorData(cached)) {
-            localStorage.setItem(LIVE_CACHE_KEY, JSON.stringify({ savedAt: new Date().toISOString(), state: { ...state, voor: cached.voor } }));
+            localStorage.setItem(LIVE_CACHE_KEY, JSON.stringify({ savedAt: new Date().toISOString(), state: { ...state, voor: cached.voor, voorAdjustments: cached.voorAdjustments || {} } }));
             return;
           }
         }
@@ -1275,7 +1323,7 @@
     async function pushLiveState(useKeepalive = false) {
       if (!LIVE_GAME_ID || !LIVE_CAN_EDIT || liveLoading) return false;
       const cached = cachedLiveState();
-      if (hasVoorData(cached)) state.voor = mergeVoorData(cached.voor, state.voor);
+      mergeVoorStateFrom(cached);
       cacheLiveState();
       try {
         const options = {
@@ -1303,7 +1351,7 @@
     async function pushLiveSetup() {
       if (!LIVE_GAME_ID || !LIVE_CAN_EDIT || liveLoading) return false;
       const cached = cachedLiveState();
-      if (hasVoorData(cached)) state.voor = mergeVoorData(cached.voor, state.voor);
+      mergeVoorStateFrom(cached);
       cacheLiveState();
       const payload = {
         token: LIVE_EDIT_TOKEN,
@@ -1315,6 +1363,7 @@
         inactiveFrom: state.inactiveFrom || {}
       };
       if (hasVoorData(state)) payload.voor = state.voor;
+      if (Object.values(state.voorAdjustments || {}).some(hasVoorObject)) payload.voorAdjustments = state.voorAdjustments;
       try {
         const res = await fetch(liveApi("update_setup"), {
           method: "POST",
@@ -1340,7 +1389,7 @@
       if (LIVE_GAME_ID) {
         if (!LIVE_CAN_EDIT || liveLoading) return;
         const cached = cachedLiveState();
-        if (hasVoorData(cached)) state.voor = mergeVoorData(cached.voor, state.voor);
+        mergeVoorStateFrom(cached);
         const voorBackup = readVoorBackup();
         if (hasVoorObject(voorBackup)) state.voor = mergeVoorData(voorBackup, state.voor);
         cacheLiveState();
@@ -1350,7 +1399,7 @@
       }
       try {
         const saved = JSON.parse(localStorage.getItem(KEY) || "null");
-        if (hasVoorData(saved)) state.voor = mergeVoorData(saved.voor, state.voor);
+        mergeVoorStateFrom(saved);
         const voorBackup = readVoorBackup();
         if (hasVoorObject(voorBackup)) state.voor = mergeVoorData(voorBackup, state.voor);
       } catch {}
@@ -1389,6 +1438,7 @@
         const cachedState = cachedLiveState();
         if (LIVE_CAN_EDIT && !hasVoorData(serverState) && hasVoorData(cachedState)) {
           serverState.voor = cachedState.voor;
+          serverState.voorAdjustments = cachedState.voorAdjustments || {};
           liveSaveStatus = "Voor dipulihkan dari backup lokal";
           setTimeout(() => pushLiveState(), 300);
         }
@@ -1427,6 +1477,25 @@
     function lastPlayableHole() {
       const lastDone = state.holes.reduce((last, hole, idx) => hole.completed ? idx : last, -1);
       return Math.max(0, lastDone >= 0 ? Math.min(lastDone + 1, roundHoles().length - 1) : state.active);
+    }
+    function nextVoorCheckpointStart() {
+      const completed = calcCompletedThrough(roundHoles().length - 1);
+      if (!completed || completed % 9 !== 0) return 0;
+      return completed < roundHoles().length ? completed : 0;
+    }
+    function beginCheckpointVoorEdit() {
+      const start = nextVoorCheckpointStart();
+      if (!start) return false;
+      state.voorAdjustments = state.voorAdjustments || {};
+      const key = String(start);
+      if (!hasVoorObject(state.voorAdjustments[key])) {
+        state.voorAdjustments[key] = { ...effectiveVoorMap(Math.max(0, start - 1)) };
+      }
+      state.editingVoorStart = start;
+      state.editingSetup = true;
+      state.showNineSummary = false;
+      state.showFinalSummary = false;
+      return true;
     }
     function render() {
       ensure();
@@ -1474,9 +1543,16 @@
       `).join("");
       document.getElementById("startBanker").innerHTML = ns.map((n, i) => `<option value="${i}">${esc(n)}</option>`).join("");
       document.getElementById("startBanker").value = state.startBanker;
-      document.getElementById("setupModeHint").textContent = state.editingSetup ? "Edit voor tanpa hapus score" : "Isi urut dari atas ke bawah";
+      const editVoorStart = editableVoorStart();
+      const editVoorHole = editVoorStart ? roundHoles()[editVoorStart]?.roundNo || editVoorStart + 1 : 0;
+      document.getElementById("setupModeHint").textContent = state.editingSetup
+        ? editVoorStart ? `Adjust voor mulai Hole ${editVoorHole} saja` : "Edit voor tanpa hapus score"
+        : "Isi urut dari atas ke bawah";
       document.getElementById("startGame").textContent = state.editingSetup ? `Simpan perubahan & Lanjut ke Hole ${roundHoles()[lastPlayableHole()]?.global || 1}` : "Mulai Permainan";
-      document.getElementById("startHelp").textContent = state.editingSetup ? "Perubahan voor akan dihitung ulang dari score yang sudah tersimpan. Data score tidak dihapus." : "Setelah mulai, layar utama dibuat seperti score card dan progress dibuka lewat tombol.";
+      document.getElementById("startHelp").textContent = state.editingSetup
+        ? editVoorStart ? `Perubahan ini hanya berlaku mulai Hole ${editVoorHole}. Hole yang sudah selesai tidak dihitung ulang dengan voor baru.`
+          : "Perubahan voor akan dihitung ulang dari score yang sudah tersimpan. Data score tidak dihapus."
+        : "Setelah mulai, layar utama dibuat seperti score card dan progress dibuka lewat tombol.";
       const addBtn = document.getElementById("add");
       addBtn.disabled = state.players.length >= MAX_PLAYERS;
       addBtn.textContent = state.players.length >= MAX_PLAYERS ? `Maks ${MAX_PLAYERS} Player` : "Tambah Player";
@@ -1507,7 +1583,7 @@
     }
     function voorCell(giver, receiver) {
       const key = `${giver}-${receiver}`;
-      const value = formatVoor(state.voor[key] || "");
+      const value = formatVoor(editableVoorMap()[key] || "");
       return `<td><input class="small ${voorClass(value)}" data-voor="${key}" value="${esc(value)}" placeholder="Isi / Skret"></td>`;
     }
     function updateStartBankerLabels() {
@@ -1749,15 +1825,21 @@
     function removePlayer(index) {
       if (state.players.length <= 2) return;
       state.players.splice(index, 1);
-      const nextVoor = {};
-      Object.entries(state.voor).forEach(([key, value]) => {
-        const [g, r] = key.split("-").map(Number);
-        if (g === index || r === index) return;
-        const ng = g > index ? g - 1 : g;
-        const nr = r > index ? r - 1 : r;
-        nextVoor[`${ng}-${nr}`] = value;
+      const reindexVoor = voor => {
+        const nextVoor = {};
+        Object.entries(voor || {}).forEach(([key, value]) => {
+          const [g, r] = key.split("-").map(Number);
+          if (g === index || r === index) return;
+          const ng = g > index ? g - 1 : g;
+          const nr = r > index ? r - 1 : r;
+          nextVoor[`${ng}-${nr}`] = value;
+        });
+        return nextVoor;
+      };
+      state.voor = reindexVoor(state.voor);
+      Object.entries(state.voorAdjustments || {}).forEach(([start, voor]) => {
+        state.voorAdjustments[start] = reindexVoor(voor);
       });
-      state.voor = nextVoor;
       const nextActive = {};
       Object.entries(state.activeFrom || {}).forEach(([player, hole]) => {
         const p = Number(player);
@@ -1785,58 +1867,60 @@
       }
     }
     function normalizeVoorInput(key, rawValue) {
+      const voor = editableVoorMap();
       const value = String(rawValue || "").trim();
       const [giver, receiver] = key.split("-").map(Number);
       if (!value || value === "0" || value.toLowerCase() === "skret") {
-        state.voor[key] = "Skret";
-        state.voor[`${receiver}-${giver}`] = "Skret";
+        voor[key] = "Skret";
+        voor[`${receiver}-${giver}`] = "Skret";
         return true;
       }
       if (["x", "no-game", "nogame"].includes(value.toLowerCase())) {
-        state.voor[key] = "No-Game";
-        state.voor[`${receiver}-${giver}`] = "No-Game";
+        voor[key] = "No-Game";
+        voor[`${receiver}-${giver}`] = "No-Game";
         return true;
       }
       if (value.startsWith("+")) {
         const clean = formatVoor(value.slice(1).trim());
         if (!parseVoor(clean).count) return null;
-        state.voor[key] = `+${clean}`;
-        state.voor[`${receiver}-${giver}`] = clean;
+        voor[key] = `+${clean}`;
+        voor[`${receiver}-${giver}`] = clean;
         return true;
       }
       if (parseVoor(value).count) {
         const clean = formatVoor(value);
-        state.voor[key] = clean;
-        state.voor[`${receiver}-${giver}`] = `+${clean}`;
+        voor[key] = clean;
+        voor[`${receiver}-${giver}`] = `+${clean}`;
         return true;
       }
       return null;
     }
     function applyVoorMirror(key, rawValue) {
+      const voor = editableVoorMap();
       const value = String(rawValue || "").trim();
       const [giver, receiver] = key.split("-").map(Number);
       const mirrorKey = `${receiver}-${giver}`;
       let mirrorValue = null;
       if (!value) return;
       if (value.toLowerCase() === "skret" || value === "0") {
-        state.voor[key] = "Skret";
+        voor[key] = "Skret";
         mirrorValue = "Skret";
       } else if (["x", "no-game", "nogame"].includes(value.toLowerCase())) {
-        state.voor[key] = "No-Game";
+        voor[key] = "No-Game";
         mirrorValue = "No-Game";
       } else if (value.startsWith("+")) {
         const clean = formatVoor(value.slice(1).trim());
         if (!parseVoor(clean).count) return;
-        state.voor[key] = `+${clean}`;
+        voor[key] = `+${clean}`;
         mirrorValue = clean;
       } else if (parseVoor(value).count) {
         const clean = formatVoor(value);
-        state.voor[key] = clean;
+        voor[key] = clean;
         mirrorValue = `+${clean}`;
       } else {
         return;
       }
-      state.voor[mirrorKey] = mirrorValue;
+      voor[mirrorKey] = mirrorValue;
       const mirrorInput = document.querySelector(`[data-voor="${mirrorKey}"]`);
       if (mirrorInput && document.activeElement !== mirrorInput) {
         mirrorInput.value = mirrorValue;
@@ -1934,6 +2018,7 @@
       if (t.dataset.player) {
         if (!state.started && state.players[Number(t.dataset.player)] !== t.value) {
           state.voor = {};
+          state.voorAdjustments = {};
           localStorage.removeItem(`${KEY}-voor-backup`);
           sessionStorage.removeItem(`${KEY}-voor-backup`);
           document.querySelectorAll("[data-voor]").forEach(input => {
@@ -1951,7 +2036,7 @@
         const rawVoor = String(t.value || "").trim();
         const savableVoor = !rawVoor || rawVoor === "0" || ["skret", "x", "no-game", "nogame"].includes(rawVoor.toLowerCase()) || (rawVoor.startsWith("+") ? !!parseVoor(rawVoor.slice(1).trim()).count : !!parseVoor(rawVoor).count);
         if (!savableVoor) return;
-        state.voor[t.dataset.voor] = t.value;
+        editableVoorMap()[t.dataset.voor] = t.value;
         t.classList.remove("voor-empty", "voor-get", "voor-give", "voor-skret", "voor-nogame");
         t.classList.add(voorClass(t.value));
         applyVoorMirror(t.dataset.voor, t.value);
@@ -2128,6 +2213,7 @@
       if (b.id === "add") addPlayer();
       if (b.id === "startGame") {
         if (state.editingSetup) {
+          const editVoorStart = editableVoorStart();
           if (LIVE_GAME_ID && LIVE_CAN_EDIT) {
             const ok = await pushLiveSetup();
             if (!ok) {
@@ -2138,10 +2224,11 @@
             save();
           }
           state.editingSetup = false;
+          state.editingVoorStart = 0;
           state.showNineSummary = false;
           state.showFinalSummary = false;
           state.active = lastPlayableHole();
-          recalcBankersFrom(0);
+          recalcBankersFrom(editVoorStart ? Math.max(0, editVoorStart - 1) : 0);
           flushSave();
           render();
           return;
@@ -2154,12 +2241,15 @@
         state.active = 0;
         state.activeFrom = {};
         state.inactiveFrom = {};
+        state.voorAdjustments = {};
+        state.editingVoorStart = 0;
         state.showNineSummary = false;
         state.showFinalSummary = false;
         state.holes = [];
       }
       if (b.id === "editSetup") {
         state.editingSetup = true;
+        state.editingVoorStart = 0;
         flushSave();
       }
       if (b.id === "newRound") {
@@ -2234,8 +2324,13 @@
         state.active = Math.min(9, roundHoles().length - 1);
       }
       if (b.id === "adjustBackNine") {
-        state.editingSetup = true;
-        state.showNineSummary = false;
+        if (!beginCheckpointVoorEdit()) {
+          await uiAlert("Adjust voor hanya bisa dipakai setelah checkpoint 9 holes selesai.", {
+            title: "Belum di checkpoint",
+            tone: "warn"
+          });
+          return;
+        }
         flushSave();
       }
       if (b.id === "finalMatchplay") openModal("Matchplay & Voor Next Game", matchplayHtml());
