@@ -803,7 +803,7 @@
       ]}
     };
     const APP_BUILD = "2026-06-01-live-test-v1";
-    const APP_VERSION = "1.2.0";
+    const APP_VERSION = "1.2.2";
     const KEY = "the-bangers-v3";
     const LIVE_PARAMS = new URLSearchParams(window.location.search);
     const LIVE_GAME_ID = LIVE_PARAMS.get("id") || "";
@@ -1040,6 +1040,17 @@
       if (score === -1) return { mult: 2, label: "Birdie x2" };
       return { mult: 1, label: "x1" };
     }
+    function scoreAchievement(hole, score) {
+      if (!Number.isFinite(score)) return null;
+      if (hole.par + score === 1) return { label: "Hole in One", matchplay: 3 };
+      if (score === -3) return { label: "Albatros", matchplay: 3 };
+      if (score === -2) return { label: "Eagle", matchplay: 2 };
+      return null;
+    }
+    function matchplayWinValue(hole, score) {
+      const achievement = scoreAchievement(hole, score);
+      return achievement ? achievement.matchplay : 1;
+    }
     function bestNetForHole(player, holeIdx) {
       if (!isActive(player, holeIdx)) return null;
       const score = Number(state.holes[holeIdx].scores[player]);
@@ -1205,11 +1216,29 @@
         const scores = state.holes[idx].scores.map(Number);
         const netA = netVs(a, b, idx, scores[a]);
         const netB = netVs(b, a, idx, scores[b]);
-        if (netA < netB) aWins += 1;
-        else if (netB < netA) bWins += 1;
+        if (netA < netB) aWins += matchplayWinValue(hole, scores[a]);
+        else if (netB < netA) bWins += matchplayWinValue(hole, scores[b]);
         else draws += 1;
       });
       return { aWins, bWins, draws, diff: aWins - bWins };
+    }
+    function achievementsHtml(until = roundHoles().length - 1) {
+      const ns = names();
+      const rows = [];
+      roundHoles().forEach((hole, idx) => {
+        const entry = state.holes[idx];
+        if (idx > until || !entry?.completed) return;
+        const scores = entry.scores.map(Number);
+        activeIndexes(idx).forEach(player => {
+          const achievement = scoreAchievement(hole, scores[player]);
+          if (!achievement) return;
+          rows.push(`<tr><td>${hole.roundNo}</td><td>${esc(ns[player])}</td><td>${esc(achievement.label)}</td><td class="money">${scores[player]}</td><td>${hole.par}</td></tr>`);
+        });
+      });
+      if (!rows.length) return "";
+      return `<h2>Catatan Eagle / Albatros / Hole in One</h2>
+        <div class="hint">Catatan ini hanya pengingat pencapaian score spesial. Bonus matchplay tetap dihitung per lawan dan bisa batal untuk pair yang draw karena voor.</div>
+        <div class="table"><table><thead><tr><th>Hole</th><th>Player</th><th>Achievement</th><th class="money">Score</th><th>Par</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
     }
     function voorText(giver, receiver) {
       return formatVoor(state.voor[`${giver}-${receiver}`]) || "Skret";
@@ -1902,6 +1931,7 @@
       const showCoffee = !options.hideCoffee && calcCompletedThrough(17) < 18 && coffeeMessage();
       return `${showCoffee ? `<div class="hint"><b>${esc(showCoffee)}</b></div>` : ""}
         <div class="cards">${ns.map((n, i) => `<div class="card"><strong>${esc(n)}</strong><div class="total ${moneyClass(c.totals[i].total)}">${signed(c.totals[i].total)}</div>${summaryBreakdown(i)}${rankBadge(i)}</div>`).join("")}</div>
+        ${achievementsHtml()}
         ${f2fDetail}`;
     }
     function ledgerHtml(filterPlayer = "all") {
