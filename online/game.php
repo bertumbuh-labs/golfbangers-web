@@ -596,12 +596,10 @@
       <div class="row"><button id="finalMatchplay" class="primary">Check Matchplay</button><button id="backToScoreCard">Kembali ke Score Card</button></div>
     </div>
   </section>
-  <footer class="site-footer">
-    <div class="footer-inner">
-      <div>Copyright © 2026 GolfBangers.com by Emon. All Rights Reserved.</div>
-      <span class="app-version">Live Score v1.2.1 On-Berdie Fix</span>
-    </div>
-  </footer>
+  <?php
+  $footer_wrap_inner = true;
+  include dirname(__DIR__) . '/inc/footer.php';
+  ?>
 
   <div id="modal" class="modal">
     <div class="modal-card">

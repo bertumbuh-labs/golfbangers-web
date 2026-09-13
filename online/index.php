@@ -352,10 +352,7 @@
       </section>
     </div>
 
-    <footer class="site-footer">
-      <div>Copyright &copy; 2026 GolfBangers.com by Emon. All Rights Reserved.</div>
-      <span class="app-version">Live Score v1.2.0</span>
-    </footer>
+    <?php include dirname(__DIR__) . '/inc/footer.php'; ?>
   </main>
 
 <script>

@@ -319,10 +319,7 @@
       <a class="back-link" href="/">← Back to Live Score</a>
     </div>
 
-    <footer class="site-footer">
-      <div>Copyright &copy; 2026 GolfBangers.com by Emon. All Rights Reserved.</div>
-      <span class="app-version">Install Page v1.1.0</span>
-    </footer>
+    <?php include dirname(__DIR__) . '/inc/footer.php'; ?>
   </main>
 
   <script>
