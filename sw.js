@@ -1,13 +1,9 @@
 /* GolfBangers PWA service worker */
 const CACHE_VERSION = 'gb-pwa-v2';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
+
+/* Hanya aset statis jarang berubah — JANGAN cache HTML/PHP di sini */
 const SHELL_ASSETS = [
-  '/',
-  '/index.php',
-  '/game.php',
-  '/download/',
-  '/download/index.php',
-  '/acak.html',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -17,6 +13,21 @@ const SHELL_ASSETS = [
   '/icons/favicon-32.png',
   '/icons/favicon-16.png'
 ];
+
+function isApiRequest(url) {
+  return url.pathname.endsWith('/api.php') || url.pathname.includes('/api.php');
+}
+
+function isHtmlLike(request, url) {
+  if (request.mode === 'navigate') return true;
+  const path = url.pathname;
+  return (
+    path.endsWith('.php') ||
+    path.endsWith('.html') ||
+    path === '/' ||
+    path.endsWith('/')
+  );
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -46,24 +57,21 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // API & live data: network first
-  if (url.pathname.endsWith('/api.php') || url.pathname.includes('/api.php')) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => response)
-        .catch(() => caches.match(request))
-    );
+  // API & live data: network only
+  if (isApiRequest(url)) {
+    event.respondWith(fetch(request));
     return;
   }
 
-  // APK: network only (large binary)
+  // APK: network only
   if (url.pathname.endsWith('.apk')) {
     event.respondWith(fetch(request));
     return;
   }
 
-  // PHP pages: network first so scoring rules and app version do not stay stale.
-  if (url.pathname.endsWith('.php') || url.pathname === '/') {
+  // Halaman HTML/PHP: network-first (selalu coba versi terbaru)
+  // Offline fallback ke cache jika pernah berhasil di-cache sebelumnya
+  if (isHtmlLike(request, url)) {
     event.respondWith(
       fetch(request)
         .then((response) => {
@@ -78,19 +86,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // App shell: cache first, then network
+  // Aset statis (ikon, dll.): cache-first
   event.respondWith(
     caches.match(request).then((cached) => {
-      const networkFetch = fetch(request)
-        .then((response) => {
-          if (response && response.ok && response.type === 'basic') {
-            const copy = response.clone();
-            caches.open(SHELL_CACHE).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || networkFetch;
+      if (cached) return cached;
+      return fetch(request).then((response) => {
+        if (response && response.ok && response.type === 'basic') {
+          const copy = response.clone();
+          caches.open(SHELL_CACHE).then((cache) => cache.put(request, copy));
+        }
+        return response;
+      });
     })
   );
 });
