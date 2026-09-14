@@ -144,7 +144,12 @@
     .checkline { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; white-space: nowrap; }
     .checkline input { width: 18px; height: 18px; }
     .hint { padding: 10px; border: 1px solid #ead7a2; background: #fff9e7; border-radius: 8px; color: #68510a; font-size: 13px; line-height: 1.4; }
-    .defaults { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .defaults { display: grid; gap: 7px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .defaults-title { font-size: 16px; font-weight: 900; }
+    .rule-row { display: grid; grid-template-columns: minmax(130px, 1fr) auto; gap: 10px; align-items: center; line-height: 1.3; }
+    .rule-row .amount { font-weight: 900; font-variant-numeric: tabular-nums; text-align: right; }
+    .rule-note { color: var(--muted); line-height: 1.35; }
+    .rule-bonus { color: var(--green); font-size: 12px; font-weight: 850; letter-spacing: .03em; line-height: 1.35; }
     .celebration { font-size: 18px; font-weight: 900; color: var(--green); }
     .table { overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
     table { width: 100%; min-width: 720px; border-collapse: collapse; }
@@ -804,7 +809,7 @@
       ]}
     };
     const APP_BUILD = "2026-06-01-live-test-v1";
-    const APP_VERSION = "1.2.7";
+    const APP_VERSION = "1.2.8";
     const MAX_PLAYERS = 16;
     const KEY = "the-bangers-v3";
     const LIVE_PARAMS = new URLSearchParams(window.location.search);
@@ -1735,14 +1740,14 @@
       document.getElementById("useBacarat").checked = !!state.useBacarat;
       document.getElementById("startBankerWrap").classList.toggle("hide", !state.useBacarat);
       document.getElementById("rateSummary").innerHTML = `
-        <b>Bangers Rule!</b>
-        <span>1. Face to face: <b>Rp ${fmt.format(state.rates.f2f)}</b> / Hole</span>
-        <span>2. Single winner: <b>Rp ${fmt.format(state.rates.winner)}</b> / Hole</span>
-        ${state.useBacarat ? `<span>3. Bacarat: <b>Rp ${fmt.format(state.rates.bacarat)}</b> (Non Par 3) / <b>Rp. ${fmt.format(state.rates.bacaratPar3)}</b> (Par 3)</span>
-        <span>- Player Bacarat x3</span>
-        <span>- Bandar Bacarat x2</span>` : `<span>3. Bacarat: <b>Tidak dipakai ronde ini</b></span>`}
-        <span>4. Winner (On Berdie): <b>Rp. ${fmt.format(state.rates.par3Bonus)}</b> / Hole</span>
-        <span>Birdie x2, eagle x5, albatros x15, HIO x10</span>
+        <div class="defaults-title">Bangers Rule!</div>
+        <div class="rule-row"><span>1. Face to face</span><span class="amount">Rp ${fmt.format(state.rates.f2f)}</span></div>
+        <div class="rule-row"><span>2. Single winner</span><span class="amount">Rp ${fmt.format(state.rates.winner)}</span></div>
+        ${state.useBacarat ? `<div class="rule-row"><span>3. Bacarat Non Par 3</span><span class="amount">Rp ${fmt.format(state.rates.bacarat)}</span></div>
+        <div class="rule-row"><span>Bacarat Par 3</span><span class="amount">Rp ${fmt.format(state.rates.bacaratPar3)}</span></div>
+        <div class="rule-note">Player Bacarat x3 &nbsp;|&nbsp; Bandar Bacarat x2</div>` : `<div class="rule-row"><span>3. Bacarat</span><span class="amount">Tidak dipakai</span></div>`}
+        <div class="rule-row"><span>4. Winner (On BERDIE)</span><span class="amount">Rp ${fmt.format(state.rates.par3Bonus)}</span></div>
+        <div class="rule-bonus">BERDIE x2, EAGLE x5, ALBATROS x15, HIO x10</div>
         `;
       document.getElementById("matrix").innerHTML = `
         <table class="matrix-table">
