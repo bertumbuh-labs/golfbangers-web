@@ -213,6 +213,11 @@
     .money { text-align: right; font-variant-numeric: tabular-nums; }
     .score { width: 72px; min-height: 34px; }
     .small { min-height: 34px; padding: 6px 7px; }
+    .kring-input { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+    .kring-input input { width: 100%; min-width: 70px; }
+    .kring-signs { display: flex; flex: 0 0 auto; gap: 3px; }
+    .kring-signs button { min-width: 36px; min-height: 44px; padding: 4px; font-size: 18px; }
+    .kring-signs button[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: #fff; }
     .voor-empty { background: #fff; border-color: var(--line); color: var(--muted); }
     .voor-get { background: #e2f3e8; border-color: #9ecdae; color: #145f43; font-weight: 800; }
     .voor-give { background: #f9e4e2; border-color: #e2aaa6; color: #9c322e; font-weight: 800; }
@@ -809,7 +814,7 @@
       ]}
     };
     const APP_BUILD = "2026-06-01-live-test-v1";
-    const APP_VERSION = "1.2.8";
+    const APP_VERSION = "1.2.9";
     const MAX_PLAYERS = 16;
     const KEY = "the-bangers-v3";
     const LIVE_PARAMS = new URLSearchParams(window.location.search);
@@ -1417,7 +1422,7 @@
     function parseKring(value) {
       const clean = String(value ?? "").replace(/[^\d-]/g, "");
       if (!clean || clean === "-") return 0;
-      const negative = clean.startsWith("-");
+      const negative = clean.includes("-");
       const digits = clean.replace(/-/g, "");
       if (!digits) return 0;
       const amount = Number(digits);
@@ -1427,6 +1432,12 @@
       const amount = parseKring(value);
       if (!amount) return "";
       return `${amount < 0 ? "-" : ""}${fmt.format(Math.abs(amount))}`;
+    }
+    function syncKringSigns(input) {
+      const negative = input.value.trim().startsWith("-");
+      input.closest(".kring-input").querySelectorAll("[data-kring-sign]").forEach(button => {
+        button.setAttribute("aria-pressed", String((button.dataset.kringSign === "-") === negative));
+      });
     }
     function esc(value) {
       return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[ch]));
@@ -2050,7 +2061,7 @@
             <td data-label="Score"><input class="score" type="number" min="-5" max="10" data-score="${idx}" value="${esc(entry.scores[idx])}"></td>
             ${onGreenCell}
             ${bacaratCells}
-            <td data-label="Kring" class="money"><input class="small money" type="text" inputmode="numeric" data-kring="${idx}" value="${esc(formatKring(entry.kring?.[idx] ?? 0))}" placeholder="0"></td>
+            <td data-label="Kring" class="money"><div class="kring-input"><div class="kring-signs" role="group" aria-label="Tanda Kring ${esc(ns[idx])}"><button type="button" data-kring-sign="+" aria-label="Kring positif ${esc(ns[idx])}" aria-pressed="${parseKring(entry.kring?.[idx] ?? 0) >= 0}">+</button><button type="button" data-kring-sign="-" aria-label="Kring negatif ${esc(ns[idx])}" aria-pressed="${parseKring(entry.kring?.[idx] ?? 0) < 0}">−</button></div><input class="small money" type="text" inputmode="numeric" data-kring="${idx}" aria-label="Nominal Kring ${esc(ns[idx])}" value="${esc(formatKring(entry.kring?.[idx] ?? 0))}" placeholder="0"></div></td>
             <td data-label="Total" class="money">${signed(calcNow.totals[idx].total)}</td>
           </tr>`;
         }).join("")}</tbody>
@@ -2415,13 +2426,11 @@
       }
       if (t.dataset.kring) {
         const playerIdx = Number(t.dataset.kring);
-        if (String(t.value).trim() === "-") {
-          state.holes[state.active].kring[playerIdx] = 0;
-          return;
-        }
+        const pendingNegative = String(t.value).trim() === "-";
         const amount = parseKring(t.value);
         state.holes[state.active].kring[playerIdx] = amount;
-        t.value = formatKring(amount);
+        t.value = pendingNegative ? "-" : formatKring(amount);
+        syncKringSigns(t);
         state.holes[state.active].completed = false;
         save();
         return;
@@ -2471,6 +2480,10 @@
       }
     });
     document.addEventListener("pointerdown", e => {
+      if (e.target.closest?.("[data-kring-sign]")) {
+        e.preventDefault();
+        return;
+      }
       const t = e.target;
       if (!t?.dataset?.score || t.value !== "") return;
       const rect = t.getBoundingClientRect();
@@ -2590,6 +2603,14 @@
       if (e.target.closest("#uiDialog")) return;
       const b = e.target.closest("button");
       if (!b) return;
+      if (b.dataset.kringSign) {
+        const input = b.closest(".kring-input").querySelector("[data-kring]");
+        const amount = Math.abs(parseKring(input.value));
+        input.value = `${b.dataset.kringSign === "-" ? "-" : ""}${amount ? fmt.format(amount) : ""}`;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.setSelectionRange(input.value.length, input.value.length);
+        return;
+      }
       if (b.dataset.hole) state.active = Number(b.dataset.hole);
       if (b.id === "openAcakHole") {
         window.open("/acak.html", "_blank", "noopener");
